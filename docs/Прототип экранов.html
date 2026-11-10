@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Прототип экранов · Статистика заказов</title>
+<style>
+  :root{color-scheme:light;--ink:#15283a;--muted:#53667a;--line:#dce5ec;--surface:#fff;--wash:#f2f6f9;--teal:#07665b;--teal-bg:#e1f3ee;--blue:#204d78;--amber:#805218;--red:#a33d47}
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--wash);color:var(--ink);font:14px/1.5 "Segoe UI",Arial,sans-serif}
+  h1,h2,p{margin:0} h1{font-size:clamp(25px,4vw,36px);line-height:1.14;letter-spacing:-.025em}
+  h2{font-size:17px;line-height:1.3}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer;min-height:40px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:8px 13px;font-weight:600}
+  button:disabled{cursor:default;color:var(--muted);background:var(--wash)}
+  button:hover:not(:disabled){border-color:var(--teal)} :focus-visible{outline:3px solid #1b8a7c;outline-offset:3px}
+  .primary{background:var(--teal);color:#fff;border-color:var(--teal)}
+  .preview{background:#182c3d;color:#fff}
+  .preview-inner,.shell{width:min(100% - 40px,1100px);margin:auto}
+  .preview-inner{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:54px;padding-block:8px}
+  .preview strong{font-size:13px}.preview-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .preview select,.preview button{border-color:#648097;background:#223e54;color:#fff;min-height:34px;padding:4px 8px}
+  .app-nav{background:var(--surface);border-bottom:1px solid var(--line)}
+  .app-nav .shell{display:flex;align-items:center;gap:20px;min-height:65px;flex-wrap:wrap;padding-block:8px}
+  .brand{font-size:16px;font-weight:750;margin-right:auto;white-space:nowrap}
+  .brand-mark{display:inline-grid;place-items:center;width:26px;height:26px;margin-right:7px;border-radius:7px;background:var(--teal);color:#fff;font-size:14px}
+  .nav-items{display:flex;gap:4px;flex-wrap:wrap}
+  .nav-items button{border-color:transparent;background:transparent;color:var(--muted)}
+  .nav-items [aria-current="page"]{background:var(--teal-bg);color:var(--teal)}
+  .role-label{color:var(--muted);font-size:13px}
+  main{padding-block:26px 42px}
+  .stack{display:grid;gap:17px}.muted{color:var(--muted)}
+  .heading-row,.actions,.filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .heading-row{justify-content:space-between}.heading-row p{margin-top:5px}
+  .panel{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:16px}
+  .filters{align-items:end}
+  .panel label,.preview label{display:grid;gap:4px;font-size:13px;font-weight:600}
+  .preview label{display:flex;align-items:center;gap:7px}
+  input,select{min-height:40px;border:1px solid #bdcbd7;border-radius:8px;padding:7px 9px;background:var(--surface);width:100%;min-width:0}
+  .filters label{flex:1 1 128px}.filters .primary{min-width:109px}
+  .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .metric{display:grid;gap:4px}.metric p{color:var(--muted)}
+  .metric strong{font-size:clamp(24px,4vw,32px);line-height:1.15;font-variant-numeric:tabular-nums}
+  .chart-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px}
+  .chart{display:grid;align-content:start;gap:8px;min-width:0}
+  .chart.special{grid-column:1/-1}
+  .plot{width:100%;height:124px;display:block;color:var(--muted)}
+  .plot text{fill:currentColor;font:12px "Segoe UI",Arial,sans-serif}
+  .grid-line{stroke:#d9e4eb;stroke-width:1}
+  .count-line{stroke:var(--teal);stroke-width:3;fill:none;stroke-linejoin:round;stroke-linecap:round}
+  .count-dot,.revenue-bar{fill:var(--teal)}
+  .status-bars{display:grid;gap:9px;margin-block:4px}
+  .status-bars div{display:grid;grid-template-columns:minmax(84px,1.12fr) 1fr 1.5ch;align-items:center;gap:6px;font-size:12px}
+  .bar-track{height:9px;border-radius:8px;background:#edf2f5}
+  .bar-fill{display:block;height:100%;border-radius:8px;background:var(--teal)}
+  .bar-fill.processing{background:#a87830}.bar-fill.cancelled{background:#b7656d}
+  details{margin-top:4px;border-top:1px solid var(--line);padding-top:6px}
+  summary{cursor:pointer;color:var(--teal);font-weight:650}
+  table{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums}
+  th,td{padding:9px 7px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-weight:650;color:var(--muted);font-size:13px}
+  .mini th,.mini td{padding:4px;font-size:12px}
+  .records td:last-child{text-align:right}
+  .table-wrap{overflow-x:auto}.records{min-width:640px}.channels-table{min-width:450px}
+  .pill{display:inline-block;border-radius:20px;padding:3px 8px;background:#e9eff5;color:var(--blue);font-size:12px;font-weight:650;white-space:nowrap}
+  .pill.done{background:var(--teal-bg);color:var(--teal)}
+  .pill.processing{background:#fff1d9;color:var(--amber)}
+  .pill.cancelled{background:#fbe9eb;color:var(--red)}
+  .form-layout{max-width:670px}.fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .fields .wide{grid-column:1/-1}.field-hint{font-weight:400;color:var(--muted)}
+  .sign-in{max-width:430px;margin:16px auto 0}
+  .sign-in .actions>*{flex:1}
+  .notice{border-left:3px solid var(--teal);padding:7px 10px;background:var(--teal-bg);color:var(--teal)}
+  .error{color:var(--red)}
+  .pagination{justify-content:space-between}.amount{white-space:nowrap}.nowrap{white-space:nowrap}
+  @media(max-width:860px){.chart-grid{grid-template-columns:1fr 1fr}.chart:first-child{grid-column:1/-1}}
+  @media(max-width:560px){
+    .preview-inner,.shell{width:calc(100% - 24px)}
+    .preview-inner,.app-nav .shell{gap:7px}
+    .preview-inner{align-items:flex-start;flex-direction:column}
+    .brand{flex:1 0 100%}
+    .app-nav .shell{padding-block:10px}
+    .nav-items button,button,input,select{min-height:44px}
+    main{padding-top:18px}
+    .chart-grid,.metric-grid,.fields{grid-template-columns:1fr}
+    .chart:first-child{grid-column:auto}
+    .panel{padding:12px}
+    .filters label{flex-basis:117px}
+    .records{min-width:0}
+    .records thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+    .records,.records tbody,.records tr{display:block}
+    .records tr{border-bottom:1px solid var(--line);padding:8px 0}
+    .records td,.records td:last-child{display:grid;grid-template-columns:minmax(82px,1fr) 1.5fr;gap:7px;text-align:left;border:0;padding:4px}
+    .records td::before{content:attr(data-label);color:var(--muted)}
+    .records td:empty{display:none}
+  }
+</style>
+</head>
+<body>
+<header class="preview">
+  <div class="preview-inner">
+    <strong>Прототип интерфейса · учебные данные</strong>
+    <div class="preview-controls">
+      <label>Состояние
+        <select id="preview-state" aria-label="Состояние статистики">
+          <option value="before">До завершения заказа</option>
+          <option value="after">После завершения заказа</option>
+          <option value="single">Один заказ · 23 ноября</option>
+          <option value="empty">Пустой период</option>
+          <option value="zero">Завершённый заказ на 0 ₽</option>
+        </select>
+      </label>
+      <button type="button" id="reset-preview">Сбросить</button>
+    </div>
+  </div>
+</header>
+<div class="app-nav">
+  <div class="shell">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">▥</span> Статистика заказов</div>
+    <nav class="nav-items" aria-label="Разделы приложения">
+      <button type="button" data-go="stats" aria-current="page">Статистика</button>
+      <button type="button" data-go="orders" data-admin>Заказы</button>
+      <button type="button" data-go="channels" data-admin>Каналы продаж</button>
+    </nav>
+    <span class="role-label" id="active-role">Администратор</span>
+    <button type="button" data-go="login" id="logout">Выйти</button>
+  </div>
+</div>
+<main class="shell">
+  <section id="login" class="panel stack sign-in" aria-labelledby="login-title" hidden>
+    <div class="stack"><h1 id="login-title" tabindex="-1">Вход</h1><p class="muted">Войдите, чтобы посмотреть статистику заказов.</p></div>
+    <label>Электронная почта<input type="email" value="admin@example.test" readonly></label>
+    <label>Пароль<input type="password" value="prototype" readonly></label>
+    <button type="button" class="primary" data-role="admin">Войти</button>
+    <button type="button" data-role="analyst">Открыть демонстрацию аналитика</button>
+  </section>
+  <section id="stats" class="stack" aria-labelledby="stats-title">
+    <div class="heading-row">
+      <div><h1 id="stats-title" tabindex="-1">Статистика</h1><p class="muted" id="stats-subtitle">Заказы по дате создания · время Москвы</p></div>
+    </div>
+    <form class="panel filters" id="period-form">
+      <label>Дата начала<input required type="date" id="period-start" value="2026-11-16"></label>
+      <label>Дата окончания<input required type="date" id="period-end" value="2026-11-24"></label>
+      <button type="submit" class="primary">Применить</button>
+      <p id="period-help" class="error" role="alert" hidden></p>
+    </form>
+    <div class="metric-grid" aria-live="polite">
+      <div class="panel metric"><p>Всего заказов</p><strong id="metric-count">3</strong><p>Все статусы</p></div>
+      <div class="panel metric"><p>Выручка</p><strong id="metric-revenue">2 000 ₽</strong><p>Завершённые заказы</p></div>
+      <div class="panel metric"><p>Средний чек</p><strong id="metric-average">2 000 ₽</strong><p>На завершённый заказ</p></div>
+    </div>
+    <p id="empty-state" class="notice" role="status" hidden>За выбранный период заказов нет.</p>
+    <div class="chart-grid" id="charts">
+      <article class="panel chart" id="daily-chart">
+        <h2>Заказы по дням</h2>
+        <svg class="plot" viewBox="0 0 300 124" role="img" aria-labelledby="daily-caption">
+          <title id="daily-caption">По одному заказу 16, 21 и 23 ноября, в остальные дни — ноль.</title>
+          <text x="1" y="11">шт.</text><text x="7" y="37">1</text><text x="7" y="99">0</text>
+          <line class="grid-line" x1="29" y1="32" x2="283" y2="32"/>
+          <line class="grid-line" x1="29" y1="94" x2="283" y2="94"/>
+          <polyline class="count-line" points="29,32 60.75,94 92.5,94 124.25,94 156,94 187.75,32 219.5,94 251.25,32 283,94"/>
+          <circle class="count-dot" cx="29" cy="32" r="4"/><circle class="count-dot" cx="187.75" cy="32" r="4"/><circle class="count-dot" cx="251.25" cy="32" r="4"/>
+          <text x="29" y="115" text-anchor="middle">16.11</text><text x="156" y="115" text-anchor="middle">20.11</text><text x="283" y="115" text-anchor="middle">24.11</text>
+        </svg>
+        <p class="muted">По 1 заказу 16, 21 и 23 ноября.</p>
+        <details><summary>Значения</summary><table class="mini" aria-label="Заказы по дням">
+          <thead><tr><th scope="col">День</th><th scope="col">Заказы, шт.</th></tr></thead>
+          <tbody><tr><td>16.11</td><td>1</td></tr><tr><td>17–20.11</td><td>0 в день</td></tr><tr><td>21.11</td><td>1</td></tr><tr><td>22.11</td><td>0</td></tr><tr><td>23.11</td><td>1</td></tr><tr><td>24.11</td><td>0</td></tr></tbody>
+        </table></details>
+      </article>
+      <article class="panel chart" id="weekly-chart">
+        <h2>Выручка по неделям</h2>
+        <svg class="plot" viewBox="0 0 234 124" role="img" aria-labelledby="weekly-caption">
+          <title id="weekly-caption">За 16–22 ноября 2000 рублей, за 23–24 ноября 0 рублей.</title>
+          <text x="1" y="11">₽</text><text x="1" y="29">2 000</text><text x="14" y="99">0</text>
+          <line class="grid-line" x1="40" y1="24" x2="228" y2="24"/>
+          <line class="grid-line" x1="40" y1="94" x2="228" y2="94"/>
+          <rect class="revenue-bar" x="70" y="24" width="37" height="70" rx="2"/>
+          <rect class="revenue-bar" id="second-week-bar" x="159" y="94" width="37" height="0" rx="2"/>
+          <text x="88" y="115" text-anchor="middle">16–22.11</text><text x="177" y="115" text-anchor="middle">23–24.11</text>
+        </svg>
+        <p class="muted" id="weekly-label">2 000 ₽ и 0 ₽</p>
+        <details><summary>Значения</summary><table class="mini" aria-label="Выручка по неделям">
+          <thead><tr><th scope="col">Даты</th><th scope="col">Выручка, ₽</th></tr></thead>
+          <tbody><tr><td>16–22.11</td><td>2 000</td></tr><tr><td>23–24.11</td><td id="second-week-value">0</td></tr></tbody>
+        </table></details>
+      </article>
+      <article class="panel chart" id="status-chart">
+        <h2>Заказы по статусам</h2>
+        <p class="muted">Заказы, шт.</p>
+        <div class="status-bars" aria-hidden="true">
+          <div><span>Новый</span><span class="bar-track"></span><b>0</b></div>
+          <div><span>В работе</span><span class="bar-track"><i class="bar-fill processing" id="processing-bar" style="width:50%"></i></span><b id="processing-count">1</b></div>
+          <div><span>Завершён</span><span class="bar-track"><i class="bar-fill" id="completed-bar" style="width:50%"></i></span><b id="completed-count">1</b></div>
+          <div><span>Отменён</span><span class="bar-track"><i class="bar-fill cancelled" id="cancelled-bar" style="width:50%"></i></span><b id="cancelled-count">1</b></div>
+        </div>
+        <details><summary>Значения</summary><table class="mini" aria-label="Заказы по статусам">
+          <thead><tr><th scope="col">Статус</th><th scope="col">Заказы, шт.</th></tr></thead>
+          <tbody><tr><td>Новый</td><td>0</td></tr><tr><td>В работе</td><td id="processing-value">1</td></tr><tr><td>Завершён</td><td id="completed-value">1</td></tr><tr><td>Отменён</td><td id="cancelled-value">1</td></tr></tbody>
+        </table></details>
+      </article>
+      <article class="panel chart special" id="special-chart" hidden>
+        <h2 id="special-date">27 ноября</h2>
+        <p>Заказы за день — 1 шт.</p>
+        <p id="special-revenue">Выручка за неделю в пределах периода — 0 ₽.</p>
+        <p id="special-status">Завершён — 1 шт. Остальные статусы — 0 шт.</p>
+      </article>
+    </div>
+  </section>
+  <section id="orders" class="stack" aria-labelledby="orders-title" hidden>
+    <div class="heading-row"><h1 id="orders-title" tabindex="-1">Заказы</h1><button type="button" class="primary" data-order="new">Новый заказ</button></div>
+    <form class="panel filters" id="order-filters">
+      <label>Номер заказа<input id="query-order" type="search" placeholder="Например, Z-104"></label>
+      <label>С<input type="date" id="orders-from" value="2026-11-16"></label>
+      <label>По<input type="date" id="orders-to" value="2026-11-24"></label>
+      <label>Статус<select id="query-status"><option value="">Все</option><option>Новый</option><option>В работе</option><option>Завершён</option><option>Отменён</option></select></label>
+      <label>Канал<select id="query-channel"><option value="">Все</option><option>Сайт</option><option>Маркетплейс</option></select></label>
+      <button type="submit">Найти</button>
+    </form>
+    <div class="panel stack">
+      <div class="table-wrap">
+        <table class="records" aria-label="Список учебных заказов">
+          <thead><tr><th scope="col">Номер</th><th scope="col">Создан</th><th scope="col">Канал</th><th scope="col">Статус</th><th scope="col">Сумма, ₽</th><th scope="col" aria-label="Действия"></th></tr></thead>
+          <tbody>
+            <tr data-order-row data-number="Z-104" data-date="2026-11-23" data-channel="Маркетплейс"><td data-label="Номер"><strong>Z-104</strong></td><td data-label="Создан">23.11.2026 10:30</td><td data-label="Канал">Маркетплейс</td><td data-label="Статус"><span class="pill processing" id="target-status">В работе</span></td><td data-label="Сумма, ₽" class="amount">1 000</td><td data-label=""><button type="button" data-order="target">Открыть Z-104</button></td></tr>
+            <tr data-order-row data-number="Z-103" data-date="2026-11-21" data-channel="Сайт"><td data-label="Номер"><strong>Z-103</strong></td><td data-label="Создан">21.11.2026 15:00</td><td data-label="Канал">Сайт</td><td data-label="Статус"><span class="pill cancelled">Отменён</span></td><td data-label="Сумма, ₽" class="amount">500</td><td></td></tr>
+            <tr data-order-row data-number="Z-102" data-date="2026-11-16" data-channel="Сайт"><td data-label="Номер"><strong>Z-102</strong></td><td data-label="Создан">16.11.2026 00:00</td><td data-label="Канал">Сайт</td><td data-label="Статус"><span class="pill done">Завершён</span></td><td data-label="Сумма, ₽" class="amount">2 000</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p id="orders-empty" class="muted" hidden>Заказов по фильтрам нет.</p>
+      <div class="actions pagination"><span id="orders-total" class="muted">Показано 3 из 3</span><div class="actions"><button disabled>Назад</button><span>1</span><button disabled>Далее</button></div></div>
+    </div>
+  </section>
+  <section id="editor" class="stack form-layout" aria-labelledby="editor-title" hidden>
+    <div class="heading-row"><h1 id="editor-title" tabindex="-1">Заказ Z-104</h1><button type="button" data-go="orders">К заказам</button></div>
+    <form class="panel stack" id="order-form">
+      <div class="fields">
+        <label>Номер<input id="order-number" value="Z-104" required pattern="[A-Z0-9\-]{1,32}" maxlength="32"></label>
+        <label>Канал продаж<select required id="order-channel"><option>Сайт</option><option selected>Маркетплейс</option></select></label>
+        <label>Сумма, ₽<input id="order-amount" type="number" min="0" max="9999999.99" step="0.01" value="1000" required></label>
+        <label>Статус<select id="order-status"><option>В работе</option><option>Завершён</option><option>Отменён</option></select></label>
+        <p class="field-hint wide" id="order-date">Создан 23.11.2026 в 10:30 по Москве.</p>
+      </div>
+      <p id="order-notice" class="notice" role="status" hidden></p>
+      <div class="actions"><button type="submit" class="primary">Сохранить заказ</button><button type="button" data-go="stats">К статистике</button></div>
+    </form>
+  </section>
+  <section id="channels" class="stack" aria-labelledby="channels-title" hidden>
+    <div class="heading-row"><div><h1 id="channels-title" tabindex="-1">Каналы продаж</h1><p class="muted">Источники поступления заказов</p></div><button type="button" class="primary" id="channel-add">Добавить канал</button></div>
+    <form class="panel filters" id="channel-form" hidden>
+      <label>Название канала<input id="channel-name" required maxlength="50"></label>
+      <button class="primary" type="submit">Сохранить</button>
+      <button type="button" id="channel-cancel">Отмена</button>
+    </form>
+    <p id="channel-notice" class="notice" role="status" hidden></p>
+    <div class="panel table-wrap"><table class="channels-table" aria-label="Каналы продаж">
+      <thead><tr><th scope="col">Название</th><th scope="col">Заказы в базе</th><th scope="col">Действия</th></tr></thead>
+      <tbody id="channel-rows"></tbody>
+    </table></div>
+  </section>
+</main>
+<script>
+  const byId = id => document.getElementById(id);
+  const show = (id, visible) => { byId(id).hidden = !visible; };
+  const put = (id, value) => { byId(id).textContent = value; };
+  const basePeriod = ['2026-11-16','2026-11-24'];
+  const stagePeriods = {single:['2026-11-23','2026-11-23'],empty:['2026-11-26','2026-11-26'],zero:['2026-11-27','2026-11-27']};
+  const screens = ['login','stats','orders','editor','channels'];
+  let role = 'admin';
+  let targetStatus = 'В работе';
+  let editorMode = 'target';
+  const channels = [{name:'Сайт',count:4},{name:'Маркетплейс',count:2},{name:'Мессенджер',count:0}];
+  let editingChannel = null;
+
+  function openScreen(screen) {
+    if (screen !== 'login' && !role) screen = 'login';
+    if (['orders','editor','channels'].includes(screen) && role !== 'admin') screen = 'stats';
+    for (const page of screens) show(page,page === screen);
+    for (const link of document.querySelectorAll('.nav-items button')) {
+      if (link.dataset.go === screen || (screen === 'editor' && link.dataset.go === 'orders')) {
+        link.setAttribute('aria-current','page');
+      } else link.removeAttribute('aria-current');
+      link.hidden = !role || (link.hasAttribute('data-admin') && role !== 'admin');
+    }
+    show('logout',Boolean(role));
+    put('active-role',role === 'admin' ? 'Администратор' : role === 'analyst' ? 'Аналитик' : '');
+    byId(screen + '-title').focus();
+  }
+
+  function updateStats(mode, writeDates = true) {
+    const empty = mode === 'empty';
+    const zero = mode === 'zero';
+    const single = mode === 'single';
+    const after = mode === 'after';
+    const cancelled = mode === 'cancelled';
+    const period = stagePeriods[mode] || basePeriod;
+    if (writeDates) {
+      byId('period-start').value = period[0];
+      byId('period-end').value = period[1];
+    }
+    byId('preview-state').value = cancelled ? 'before' : mode;
+    show('period-help',false);
+    const singleRevenue = targetStatus === 'Завершён' ? '1 000 ₽' : '0 ₽';
+    put('metric-count',empty ? '0' : zero || single ? '1' : '3');
+    put('metric-revenue',empty || zero ? '0 ₽' : single ? singleRevenue : after ? '3 000 ₽' : '2 000 ₽');
+    put('metric-average',empty ? '—' : zero ? '0 ₽' : single ? (targetStatus === 'Завершён' ? singleRevenue : '—') : after ? '1 500 ₽' : '2 000 ₽');
+    show('empty-state',empty);
+    show('charts',!empty);
+    for (const id of ['daily-chart','weekly-chart','status-chart']) show(id,!zero && !single);
+    show('special-chart',zero || single);
+    put('special-date',zero ? '27 ноября' : '23 ноября');
+    put('special-revenue','Выручка за неделю в пределах периода — ' + (zero ? '0 ₽' : singleRevenue) + '.');
+    put('special-status',(zero ? 'Завершён' : targetStatus) + ' — 1 шт. Остальные статусы — 0 шт.');
+    put('weekly-caption',after ? 'За 16–22 ноября 2000 рублей, за 23–24 ноября 1000 рублей.' : 'За 16–22 ноября 2000 рублей, за 23–24 ноября 0 рублей.');
+    put('weekly-label',after ? '2 000 ₽ и 1 000 ₽' : '2 000 ₽ и 0 ₽');
+    put('second-week-value',after ? '1 000' : '0');
+    const bar = byId('second-week-bar');
+    bar.setAttribute('y',after ? 59 : 94);
+    bar.setAttribute('height',after ? 35 : 0);
+    const counts = {processing:after || cancelled ? 0 : 1,completed:after ? 2 : 1,cancelled:cancelled ? 2 : 1};
+    for (const [status,value] of Object.entries(counts)) {
+      put(status + '-count',value);
+      put(status + '-value',value);
+      byId(status + '-bar').style.width = value * 50 + '%';
+    }
+  }
+
+  function setOrderStatus(status) {
+    targetStatus = status;
+    put('target-status',status);
+    byId('target-status').className = 'pill ' + ({'В работе':'processing','Завершён':'done','Отменён':'cancelled'}[status] || '');
+    updateStats(status === 'Завершён' ? 'after' : status === 'Отменён' ? 'cancelled' : 'before');
+  }
+
+  function setOptions(select,values,selected) {
+    select.replaceChildren(...values.map(value => new Option(value,value)));
+    select.value = selected;
+  }
+
+  function openEditor(mode) {
+    editorMode = mode;
+    const isNew = mode === 'new';
+    put('editor-title',isNew ? 'Новый заказ' : 'Заказ Z-104');
+    byId('order-number').value = isNew ? '' : 'Z-104';
+    byId('order-amount').value = isNew ? '' : '1000';
+    byId('order-channel').value = isNew ? 'Сайт' : 'Маркетплейс';
+    const options = isNew ? ['Новый'] : targetStatus === 'В работе' ? ['В работе','Завершён','Отменён'] : [targetStatus];
+    setOptions(byId('order-status'),options,options[0]);
+    const isLocked = !isNew && targetStatus !== 'В работе';
+    for (const id of ['order-number','order-amount','order-channel','order-status']) byId(id).disabled = isLocked;
+    byId('order-form').querySelector('button[type="submit"]').disabled = isLocked;
+    put('order-date',isNew ? 'Дата создания появится после сохранения.' : 'Создан 23.11.2026 в 10:30 по Москве.');
+    show('order-notice',false);
+    openScreen('editor');
+  }
+
+  function renderChannels() {
+    const body = byId('channel-rows');
+    body.replaceChildren();
+    for (const [index,channel] of channels.entries()) {
+      const row = body.insertRow();
+      for (const value of [channel.name,String(channel.count)]) row.insertCell().textContent = value;
+      const actions = row.insertCell();
+      actions.className = 'actions';
+      for (const [action,label] of [['edit','Изменить'],['delete','Удалить']]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.channelAction = action;
+        button.dataset.index = index;
+        button.textContent = label;
+        button.setAttribute('aria-label',label + ' канал «' + channel.name + '»');
+        actions.append(button);
+      }
+    }
+  }
+  function channelMessage(message) { put('channel-notice',message); show('channel-notice',true); }
+  function openChannelForm(index) {
+    editingChannel = index;
+    byId('channel-name').value = index === null ? '' : channels[index].name;
+    show('channel-notice',false);
+    show('channel-form',true);
+    byId('channel-name').focus();
+  }
+
+  document.addEventListener('click',event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    if (button.dataset.go) {
+      if (button.id === 'logout') role = null;
+      openScreen(button.dataset.go);
+    }
+    if (button.dataset.role) {
+      role = button.dataset.role;
+      openScreen('stats');
+    }
+    if (button.dataset.order) openEditor(button.dataset.order);
+    if (button.dataset.channelAction) {
+      const index = Number(button.dataset.index);
+      if (button.dataset.channelAction === 'edit') openChannelForm(index);
+      else if (channels[index].count) channelMessage('Канал связан с заказами. Удаление недоступно.');
+      else {
+        const removed = channels.splice(index,1)[0];
+        renderChannels();
+        channelMessage('Удалён канал «' + removed.name + '».');
+      }
+    }
+  });
+  byId('preview-state').addEventListener('change',event => {
+    if (event.target.value in stagePeriods) updateStats(event.target.value);
+    else setOrderStatus(event.target.value === 'after' ? 'Завершён' : 'В работе');
+    if (!role) role = 'admin';
+    openScreen('stats');
+  });
+  byId('reset-preview').addEventListener('click',() => location.reload());
+  byId('period-form').addEventListener('submit',event => {
+    event.preventDefault();
+    const start = byId('period-start').value;
+    const end = byId('period-end').value;
+    const key = Object.keys(stagePeriods).find(name => start === stagePeriods[name][0] && end === stagePeriods[name][1]);
+    if (start === basePeriod[0] && end === basePeriod[1]) {
+      updateStats(targetStatus === 'Завершён' ? 'after' : targetStatus === 'Отменён' ? 'cancelled' : 'before',false);
+    } else if (key) updateStats(key,false);
+    else {
+      put('period-help',start > end ? 'Начало периода должно быть не позже окончания.' : 'В прототипе доступны 16–24 ноября и отдельные дни 23, 26 и 27 ноября 2026 года.');
+      show('period-help',true);
+    }
+  });
+  byId('order-filters').addEventListener('submit',event => {
+    event.preventDefault();
+    const query = byId('query-order').value.trim().toUpperCase();
+    const status = byId('query-status').value;
+    const channel = byId('query-channel').value;
+    const from = byId('orders-from').value;
+    const to = byId('orders-to').value;
+    let count = 0;
+    for (const row of document.querySelectorAll('[data-order-row]')) {
+      const match = row.dataset.number.includes(query) &&
+        (!status || row.querySelector('.pill').textContent === status) &&
+        (!channel || row.dataset.channel === channel) &&
+        (!from || row.dataset.date >= from) && (!to || row.dataset.date <= to);
+      row.hidden = !match;
+      if (match) count++;
+    }
+    put('orders-total','Показано ' + count + ' из ' + count);
+    show('orders-empty',count === 0);
+  });
+  byId('order-form').addEventListener('submit',event => {
+    event.preventDefault();
+    if (editorMode === 'target') {
+      setOrderStatus(byId('order-status').value);
+      put('order-notice','Состояние заказа Z-104 изменено в прототипе.');
+    } else put('order-notice','Поля формы заполнены. Создание записи предусмотрено на этапе разработки.');
+    show('order-notice',true);
+  });
+  byId('channel-add').addEventListener('click',() => openChannelForm(null));
+  byId('channel-cancel').addEventListener('click',() => show('channel-form',false));
+  byId('channel-form').addEventListener('submit',event => {
+    event.preventDefault();
+    const name = byId('channel-name').value.trim();
+    if (!name || channels.some((channel,index) => index !== editingChannel && channel.name.toLowerCase() === name.toLowerCase())) {
+      channelMessage('Укажите уникальное непустое название.');
+      return;
+    }
+    if (editingChannel === null) channels.push({name,count:0});
+    else channels[editingChannel].name = name;
+    renderChannels();
+    show('channel-form',false);
+    channelMessage('Канал «' + name + '» сохранён в прототипе.');
+  });
+  renderChannels();
+</script>
+</body>
+</html>

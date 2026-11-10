@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1150" height="900" viewBox="0 0 1150 900" role="img" aria-labelledby="title desc">
+  <title id="title">ER-диаграмма системы аналитики продаж</title>
+  <desc id="desc">Четыре сущности: пользователи, сеансы, каналы продаж и заказы. Между пользователями и сеансами, а также каналами и заказами связи один ко многим.</desc>
+  <defs>
+    <style>
+      text{font-family:Inter,"Segoe UI",Arial,sans-serif;fill:#172b4d}.title{font-size:30px;font-weight:700}.subtitle{font-size:15px;fill:#52647a}.entity-title{font-size:19px;font-weight:700;fill:#fff}.field{font-size:14px}.muted{fill:#66788a;font-size:12px}.relation{font-size:13px;font-weight:600;fill:#37516e}
+    </style>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#17324d" flood-opacity=".12"/></filter>
+  </defs>
+  <rect width="1150" height="900" fill="#f5f8fc"/>
+  <text x="64" y="64" class="title">Модель данных системы аналитики продаж</text>
+  <text x="64" y="94" class="subtitle">ER-схема • ключи, ограничения и кардинальности связей</text>
+  <path d="M420 300 H550 M420 735 H550" fill="none" stroke="#537697" stroke-width="2.5"/>
+  <text x="432" y="289" class="relation">1</text><text x="510" y="289" class="relation">0..N</text>
+  <text x="432" y="724" class="relation">1</text><text x="510" y="724" class="relation">0..N</text>
+  <g filter="url(#shadow)"><rect x="70" y="150" width="350" height="400" rx="14" fill="#fff" stroke="#d5e0ec"/><path d="M84 150 H406 Q420 150 420 164 V204 H70 V164 Q70 150 84 150" fill="#356b9a"/></g>
+  <text x="94" y="185" class="entity-title">users · Пользователи</text>
+  <text x="94" y="237" class="field"><tspan font-weight="700">id</tspan><tspan>  bigint  •  PK  •  identity</tspan></text><line x1="94" y1="250" x2="396" y2="250" stroke="#edf1f5"/>
+  <text x="94" y="278" class="field"><tspan font-weight="700">email</tspan><tspan>  varchar(254)  •  UQ</tspan></text><text x="114" y="299" class="muted">уникален без учёта регистра</text><line x1="94" y1="311" x2="396" y2="311" stroke="#edf1f5"/>
+  <text x="94" y="339" class="field"><tspan font-weight="700">password_hash</tspan><tspan>  varchar(60)</tspan></text><text x="114" y="360" class="muted">хеш bcrypt</text><line x1="94" y1="372" x2="396" y2="372" stroke="#edf1f5"/>
+  <text x="94" y="400" class="field"><tspan font-weight="700">role</tspan><tspan>  text</tspan></text><text x="114" y="421" class="muted">CHECK: admin | analyst</text>
+  <rect x="94" y="467" width="272" height="42" rx="8" fill="#eef5fb"/><text x="108" y="493" class="muted">Одна учётная запись — много сеансов</text>
+  <g filter="url(#shadow)"><rect x="550" y="150" width="350" height="400" rx="14" fill="#fff" stroke="#d5e0ec"/><path d="M564 150 H886 Q900 150 900 164 V204 H550 V164 Q550 150 564 150" fill="#477eaa"/></g>
+  <text x="574" y="185" class="entity-title">sessions · Сеансы</text>
+  <text x="574" y="237" class="field"><tspan font-weight="700">token_hash</tspan><tspan>  text  •  PK</tspan></text><text x="594" y="258" class="muted">SHA-256 в шестнадцатеричном виде</text><line x1="574" y1="270" x2="876" y2="270" stroke="#edf1f5"/>
+  <text x="574" y="298" class="field"><tspan font-weight="700">user_id</tspan><tspan>  bigint  •  FK</tspan></text><text x="594" y="319" class="muted">→ users.id  •  ON DELETE CASCADE</text><line x1="574" y1="331" x2="876" y2="331" stroke="#edf1f5"/>
+  <text x="574" y="359" class="field"><tspan font-weight="700">created_at</tspan><tspan>  timestamptz</tspan></text><line x1="574" y1="372" x2="876" y2="372" stroke="#edf1f5"/>
+  <text x="574" y="400" class="field"><tspan font-weight="700">expires_at</tspan><tspan>  timestamptz</tspan></text>
+  <rect x="574" y="467" width="272" height="42" rx="8" fill="#eef5fb"/><text x="588" y="493" class="muted">Сеанс принадлежит одному пользователю</text>
+  <g filter="url(#shadow)"><rect x="70" y="625" width="350" height="205" rx="14" fill="#fff" stroke="#d5e0ec"/><path d="M84 625 H406 Q420 625 420 639 V679 H70 V639 Q70 625 84 625" fill="#167f81"/></g>
+  <text x="94" y="660" class="entity-title">sales_channels · Каналы продаж</text>
+  <text x="94" y="713" class="field"><tspan font-weight="700">id</tspan><tspan>  bigint  •  PK  •  identity</tspan></text><line x1="94" y1="726" x2="396" y2="726" stroke="#edf1f5"/>
+  <text x="94" y="754" class="field"><tspan font-weight="700">name</tspan><tspan>  varchar(50)  •  UQ</tspan></text><text x="114" y="777" class="muted">уникален без учёта регистра</text>
+  <g filter="url(#shadow)"><rect x="550" y="590" width="530" height="265" rx="14" fill="#fff" stroke="#d5e0ec"/><path d="M564 590 H1066 Q1080 590 1080 604 V644 H550 V604 Q550 590 564 590" fill="#a85b38"/></g>
+  <text x="574" y="625" class="entity-title">orders · Заказы</text>
+  <text x="574" y="675" class="field"><tspan font-weight="700">id</tspan><tspan>  bigint  •  PK  •  identity</tspan></text>
+  <text x="574" y="704" class="field"><tspan font-weight="700">number</tspan><tspan>  varchar(32)  •  UQ  •  нормализован в верхний регистр</tspan></text>
+  <text x="574" y="733" class="field"><tspan font-weight="700">sales_channel_id</tspan><tspan>  bigint  •  FK → sales_channels.id  •  ON DELETE RESTRICT</tspan></text>
+  <text x="574" y="762" class="field"><tspan font-weight="700">status</tspan><tspan>  text  •  CHECK: new | processing | completed | cancelled</tspan></text>
+  <text x="574" y="791" class="field"><tspan font-weight="700">total_kopecks</tspan><tspan>  bigint  •  CHECK: 0..999999999</tspan></text>
+  <text x="574" y="820" class="field"><tspan font-weight="700">created_at</tspan><tspan>  timestamptz</tspan></text>
+  <text x="70" y="875" class="muted">PK — первичный ключ   •   FK — внешний ключ   •   UQ — уникальное значение</text>
+</svg>
