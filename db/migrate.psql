@@ -1,0 +1,16 @@
+\set ON_ERROR_STOP on
+
+BEGIN;
+SELECT pg_advisory_xact_lock(921401);
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version integer PRIMARY KEY,
+    applied_at timestamptz NOT NULL DEFAULT now()
+);
+
+SELECT NOT EXISTS (SELECT FROM schema_migrations WHERE version = 1) AS apply_001 \gset
+\if :apply_001
+    \ir migrations/001_init.sql
+    INSERT INTO schema_migrations (version) VALUES (1);
+\endif
+COMMIT;
