@@ -1,0 +1,131 @@
+\set ON_ERROR_STOP on
+\encoding UTF8
+
+BEGIN;
+SET LOCAL TIME ZONE 'UTC';
+CREATE TEMP TABLE checks (name text PRIMARY KEY, report jsonb NOT NULL);
+
+EXECUTE course_statistics('2026-11-16', '2026-11-24') \gset
+INSERT INTO checks VALUES ('before', :'statistics');
+EXECUTE course_statistics('2026-11-23', '2026-11-23') \gset
+INSERT INTO checks VALUES ('processing_only', :'statistics');
+EXECUTE course_statistics('2026-11-26', '2026-11-26') \gset
+INSERT INTO checks VALUES ('empty', :'statistics');
+EXECUTE course_statistics('2026-11-27', '2026-11-27') \gset
+INSERT INTO checks VALUES ('completed_zero', :'statistics');
+EXECUTE course_statistics('2026-11-24', '2026-11-25') \gset
+INSERT INTO checks VALUES ('following_day', :'statistics');
+
+UPDATE orders SET status = 'completed' WHERE number = 'Z-104';
+
+EXECUTE course_statistics('2026-11-16', '2026-11-24') \gset
+INSERT INTO checks VALUES ('after', :'statistics');
+
+INSERT INTO orders (number, sales_channel_id, status, total_kopecks, created_at)
+SELECT test_data.number, sales_channels.id, 'completed', test_data.total, TIMESTAMPTZ '2026-11-28 12:00+03'
+FROM sales_channels
+CROSS JOIN (VALUES ('QA-1', 100), ('QA-2', 101)) AS test_data(number, total)
+WHERE sales_channels.name = 'Сайт';
+
+EXECUTE course_statistics('2026-11-28', '2026-11-28') \gset
+INSERT INTO checks VALUES ('round_half_up', :'statistics');
+
+DO $$
+DECLARE
+    before_report jsonb := (SELECT report FROM checks WHERE name = 'before');
+    after_report jsonb := (SELECT report FROM checks WHERE name = 'after');
+    channel_id bigint := (SELECT id FROM sales_channels WHERE name = 'Сайт');
+    temp_channel_id bigint;
+    admin_id bigint := (SELECT id FROM users WHERE email = 'admin@example.test');
+BEGIN
+    IF (SELECT count(*) FROM schema_migrations) <> 1 OR
+       (SELECT count(*) FROM users) <> 2 OR
+       (SELECT count(*) FROM sales_channels) <> 3 OR
+       (SELECT count(*) FROM orders WHERE number LIKE 'Z-%') <> 6 THEN
+        RAISE EXCEPTION 'Migration or seed counts do not match the fixture';
+    END IF;
+
+    IF before_report->'period' IS DISTINCT FROM '{"from":"2026-11-16","to":"2026-11-24","timeZone":"Europe/Moscow"}'::jsonb OR
+       before_report->'totals' IS DISTINCT FROM '{"orders":3,"completedOrders":1,"revenueKopecks":200000,"averageCheckKopecks":200000}'::jsonb OR
+       after_report->'totals' IS DISTINCT FROM '{"orders":3,"completedOrders":2,"revenueKopecks":300000,"averageCheckKopecks":150000}'::jsonb THEN
+        RAISE EXCEPTION 'Incorrect period or main totals';
+    END IF;
+
+    IF (SELECT jsonb_agg(value->'count') FROM jsonb_array_elements(before_report->'dailyOrders'))
+        IS DISTINCT FROM '[1,0,0,0,0,1,0,1,0]'::jsonb OR
+       before_report->'dailyOrders' IS DISTINCT FROM after_report->'dailyOrders' THEN
+        RAISE EXCEPTION 'Incorrect daily counts or zero-filled dates';
+    END IF;
+
+    IF before_report->'weeklyRevenue' IS DISTINCT FROM
+       '[{"from":"2026-11-16","to":"2026-11-22","revenueKopecks":200000},{"from":"2026-11-23","to":"2026-11-24","revenueKopecks":0}]'::jsonb OR
+       after_report->'weeklyRevenue'->1->'revenueKopecks' IS DISTINCT FROM '100000'::jsonb OR
+       (SELECT report->'weeklyRevenue'->0 FROM checks WHERE name = 'following_day') IS DISTINCT FROM
+       '{"from":"2026-11-24","to":"2026-11-25","revenueKopecks":90000}'::jsonb THEN
+        RAISE EXCEPTION 'Incorrect weekly buckets or boundary timestamp';
+    END IF;
+
+    IF before_report->'ordersByStatus' IS DISTINCT FROM
+       '[{"status":"new","count":0},{"status":"processing","count":1},{"status":"completed","count":1},{"status":"cancelled","count":1}]'::jsonb OR
+       after_report->'ordersByStatus' IS DISTINCT FROM
+       '[{"status":"new","count":0},{"status":"processing","count":0},{"status":"completed","count":2},{"status":"cancelled","count":1}]'::jsonb THEN
+        RAISE EXCEPTION 'Incorrect status ordering or counts';
+    END IF;
+
+    IF (SELECT report->'totals' FROM checks WHERE name = 'processing_only') IS DISTINCT FROM
+       '{"orders":1,"completedOrders":0,"revenueKopecks":0,"averageCheckKopecks":null}'::jsonb OR
+       (SELECT report->'totals' FROM checks WHERE name = 'empty') IS DISTINCT FROM
+       '{"orders":0,"completedOrders":0,"revenueKopecks":0,"averageCheckKopecks":null}'::jsonb OR
+       (SELECT report->'totals' FROM checks WHERE name = 'completed_zero') IS DISTINCT FROM
+       '{"orders":1,"completedOrders":1,"revenueKopecks":0,"averageCheckKopecks":0}'::jsonb OR
+       (SELECT report->'totals'->'averageCheckKopecks' FROM checks WHERE name = 'round_half_up') IS DISTINCT FROM '101'::jsonb THEN
+        RAISE EXCEPTION 'Incorrect zero, null or rounding behavior';
+    END IF;
+
+    BEGIN
+        DELETE FROM sales_channels WHERE id = channel_id;
+        RAISE EXCEPTION 'Referenced channel deletion must fail';
+    EXCEPTION WHEN foreign_key_violation OR restrict_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO sales_channels (name) VALUES ('сАйТ');
+        RAISE EXCEPTION 'Duplicate channel in mixed Cyrillic case must fail';
+    EXCEPTION WHEN unique_violation THEN NULL;
+    END;
+
+    INSERT INTO sales_channels (name) VALUES ('Временный') RETURNING id INTO temp_channel_id;
+    UPDATE sales_channels SET name = 'Временный тест' WHERE id = temp_channel_id;
+    DELETE FROM sales_channels WHERE id = temp_channel_id;
+
+    BEGIN
+        INSERT INTO orders (number, sales_channel_id, total_kopecks)
+        VALUES ('Z-102', channel_id, 123);
+        RAISE EXCEPTION 'Duplicate order number must fail';
+    EXCEPTION WHEN unique_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO orders (number, sales_channel_id, total_kopecks)
+        VALUES ('NEGATIVE', channel_id, -1);
+        RAISE EXCEPTION 'Negative amount must fail';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        UPDATE orders SET status = 'broken' WHERE number = 'Z-104';
+        RAISE EXCEPTION 'Unknown order status must fail';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    INSERT INTO sessions (token_hash, user_id, expires_at)
+    VALUES (repeat('a', 64), admin_id, now() + interval '12 hours');
+    DELETE FROM users WHERE id = admin_id;
+    IF EXISTS (SELECT FROM sessions WHERE token_hash = repeat('a', 64)) THEN
+        RAISE EXCEPTION 'Orphan session must be deleted';
+    END IF;
+END
+$$;
+
+SELECT name, report->'totals' AS totals FROM checks ORDER BY name;
+ROLLBACK;
