@@ -1,0 +1,35 @@
+\set ON_ERROR_STOP on
+\encoding UTF8
+\set demo_admin_hash ''
+\set demo_analyst_hash ''
+\getenv demo_admin_hash ORDERS_DEMO_ADMIN_HASH
+\getenv demo_analyst_hash ORDERS_DEMO_ANALYST_HASH
+
+BEGIN;
+
+INSERT INTO users (email, password_hash, role)
+VALUES
+    ('admin@example.test', :'demo_admin_hash', 'admin'),
+    ('analyst@example.test', :'demo_analyst_hash', 'analyst')
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO sales_channels (name)
+VALUES ('Сайт'), ('Маркетплейс'), ('Мессенджер')
+ON CONFLICT (lower(name)) DO NOTHING;
+
+INSERT INTO orders (number, sales_channel_id, status, total_kopecks, created_at)
+SELECT seed.number, channel.id, seed.status, seed.total_kopecks, seed.created_at
+FROM (VALUES
+    ('Z-101', 'Сайт',        'completed',  70000, TIMESTAMPTZ '2026-11-15 23:59:59+03'),
+    ('Z-102', 'Сайт',        'completed', 200000, TIMESTAMPTZ '2026-11-16 00:00:00+03'),
+    ('Z-103', 'Сайт',        'cancelled',  50000, TIMESTAMPTZ '2026-11-21 15:00:00+03'),
+    ('Z-104', 'Маркетплейс', 'processing', 100000, TIMESTAMPTZ '2026-11-23 10:30:00+03'),
+    ('Z-105', 'Маркетплейс', 'completed',  90000, TIMESTAMPTZ '2026-11-25 00:00:00+03'),
+    ('Z-106', 'Сайт',        'completed',      0, TIMESTAMPTZ '2026-11-27 12:00:00+03')
+) AS seed(number, channel_name, status, total_kopecks, created_at)
+JOIN sales_channels AS channel ON lower(channel.name) = lower(seed.channel_name COLLATE pg_catalog.pg_unicode_fast)
+ON CONFLICT (number) DO NOTHING;
+
+COMMIT;
+\unset demo_admin_hash
+\unset demo_analyst_hash
