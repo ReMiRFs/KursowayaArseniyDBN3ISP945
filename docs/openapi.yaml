@@ -1,0 +1,806 @@
+openapi: 3.0.3
+info:
+  title: API учёта заказов и продаж
+  version: 1.0.0
+  description: |
+    Контракт API для учебного приложения учёта заказов и продаж.
+    Интерфейс и документация представлены на русском языке. Имена полей JSON — английские.
+servers:
+  - url: /api/v1
+    description: Версия API
+tags:
+  - name: Авторизация
+  - name: Статистика
+  - name: Заказы
+  - name: Каналы продаж
+paths:
+  /auth/login:
+    post:
+      tags: [Авторизация]
+      summary: Войти в систему
+      description: При успешном входе устанавливает cookie сессии sid сроком на 12 часов.
+      operationId: login
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+                  example: analyst@example.test
+                password:
+                  type: string
+                  format: password
+                  minLength: 1
+                  maxLength: 72
+                  description: Пароль длиной от 1 до 72 байт в UTF-8.
+      responses:
+        '200':
+          description: Вход выполнен
+          headers:
+            Set-Cookie:
+              description: Непрозрачный идентификатор сессии. HttpOnly, SameSite=Lax, Secure при HTTPS; срок действия 12 часов.
+              schema:
+                type: string
+                example: sid=opaque-session-id; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200; Secure
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Неверные учётные данные
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/me:
+    get:
+      tags: [Авторизация]
+      summary: Получить текущего пользователя
+      operationId: getCurrentUser
+      security:
+        - SessionCookie: []
+      responses:
+        '200':
+          description: Текущий пользователь
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/logout:
+    post:
+      tags: [Авторизация]
+      summary: Выйти из системы
+      description: Завершает текущую сессию и удаляет cookie sid.
+      operationId: logout
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      responses:
+        '204':
+          description: Сессия завершена
+          headers:
+            Set-Cookie:
+              description: Удалённая cookie sid
+              schema:
+                type: string
+                example: sid=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Secure
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /statistics:
+    get:
+      tags: [Статистика]
+      summary: Получить статистику за период
+      description: |
+        Даты включаются в период. Часовой пояс — Europe/Moscow. Период не может превышать 366 календарных дней.
+        Доступно пользователям с ролью analyst или admin.
+        Выручка учитывает завершённые заказы по дате создания. Суммы указаны в копейках.
+        Средний чек округляется до копейки методом half-up и равен null при отсутствии завершённых заказов.
+        Ежедневные значения включают нули. Недельные интервалы начинаются в понедельник,
+        граничные недели обрезаются по запрошенному периоду. ordersByStatus всегда содержит все статусы.
+      operationId: getStatistics
+      security:
+        - SessionCookie: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Начальная календарная дата включительно
+          schema:
+            type: string
+            format: date
+          example: '2026-11-16'
+        - name: to
+          in: query
+          required: true
+          description: Конечная календарная дата включительно
+          schema:
+            type: string
+            format: date
+          example: '2026-11-24'
+      responses:
+        '200':
+          description: Сводка по заказам за период
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statistics'
+              examples:
+                demoPeriod:
+                  summary: Пример статистики за 16–24 ноября 2026 года
+                  value:
+                    period: {from: '2026-11-16', to: '2026-11-24', timeZone: Europe/Moscow}
+                    totals: {orders: 3, completedOrders: 2, revenueKopecks: 300000, averageCheckKopecks: 150000}
+                    dailyOrders:
+                      - {date: '2026-11-16', count: 1}
+                      - {date: '2026-11-17', count: 0}
+                      - {date: '2026-11-18', count: 0}
+                      - {date: '2026-11-19', count: 0}
+                      - {date: '2026-11-20', count: 0}
+                      - {date: '2026-11-21', count: 1}
+                      - {date: '2026-11-22', count: 0}
+                      - {date: '2026-11-23', count: 1}
+                      - {date: '2026-11-24', count: 0}
+                    weeklyRevenue:
+                      - {from: '2026-11-16', to: '2026-11-22', revenueKopecks: 200000}
+                      - {from: '2026-11-23', to: '2026-11-24', revenueKopecks: 100000}
+                    ordersByStatus:
+                      - {status: new, count: 0}
+                      - {status: processing, count: 0}
+                      - {status: completed, count: 2}
+                      - {status: cancelled, count: 1}
+        '400':
+          description: Некорректные даты, обратный период или период длиннее 366 дней
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /orders:
+    get:
+      tags: [Заказы]
+      summary: Получить список заказов
+      description: Доступно только пользователям с ролью admin.
+      operationId: listOrders
+      security:
+        - SessionCookie: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Поиск по номеру заказа
+          schema:
+            type: string
+            maxLength: 32
+        - name: from
+          in: query
+          required: false
+          description: Начальная дата создания включительно
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Конечная дата создания включительно
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - name: channelId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Id'
+        - name: page
+          in: query
+          required: false
+          description: Номер страницы, начиная с 1
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: Страница заказов, отсортированная по createdAt и id по убыванию
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Заказы]
+      summary: Создать заказ
+      description: Доступно только пользователям с ролью admin. Новый заказ получает статус new и дату создания на сервере.
+      operationId: createOrder
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrder'
+      responses:
+        '201':
+          description: Заказ создан
+          headers:
+            Location:
+              description: URI созданного заказа
+              schema:
+                type: string
+                format: uri-reference
+                example: /api/v1/orders/42
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /orders/{orderId}:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        description: Десятичный идентификатор bigint
+        schema:
+          $ref: '#/components/schemas/Id'
+    get:
+      tags: [Заказы]
+      summary: Получить заказ
+      description: Доступно только пользователям с ролью admin.
+      operationId: getOrder
+      security:
+        - SessionCookie: []
+      responses:
+        '200':
+          description: Заказ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [Заказы]
+      summary: Изменить заказ
+      description: |
+        Доступно только пользователям с ролью admin.
+        Тело должно содержать хотя бы одно поле. Изменения применяются атомарно.
+        Разрешены переходы new → processing или cancelled, processing → completed или cancelled.
+        Завершённые и отменённые заказы изменять нельзя.
+      operationId: updateOrder
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrder'
+      responses:
+        '200':
+          description: Заказ изменён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Недопустимый переход статуса, изменение терминального заказа или повтор номера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /sales-channels:
+    get:
+      tags: [Каналы продаж]
+      summary: Получить список каналов продаж
+      description: Доступно только пользователям с ролью admin.
+      operationId: listSalesChannels
+      security:
+        - SessionCookie: []
+      responses:
+        '200':
+          description: Каналы, отсортированные по имени и идентификатору
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SalesChannel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Каналы продаж]
+      summary: Создать канал продаж
+      description: Доступно только пользователям с ролью admin. Имя обрезается по краям и должно быть уникальным без учёта регистра.
+      operationId: createSalesChannel
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesChannelInput'
+      responses:
+        '201':
+          description: Канал создан
+          headers:
+            Location:
+              description: URI созданного канала
+              schema:
+                type: string
+                format: uri-reference
+                example: /api/v1/sales-channels/7
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesChannel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /sales-channels/{channelId}:
+    parameters:
+      - name: channelId
+        in: path
+        required: true
+        description: Десятичный идентификатор bigint
+        schema:
+          $ref: '#/components/schemas/Id'
+    get:
+      tags: [Каналы продаж]
+      summary: Получить канал продаж
+      description: Доступно только пользователям с ролью admin.
+      operationId: getSalesChannel
+      security:
+        - SessionCookie: []
+      responses:
+        '200':
+          description: Канал продаж
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesChannel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [Каналы продаж]
+      summary: Изменить канал продаж
+      description: Доступно только пользователям с ролью admin. Имя обрезается по краям и должно быть уникальным без учёта регистра.
+      operationId: updateSalesChannel
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesChannelInput'
+      responses:
+        '200':
+          description: Канал изменён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesChannel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Каналы продаж]
+      summary: Удалить канал продаж
+      description: Доступно только пользователям с ролью admin. Канал, на который ссылаются заказы, удалить нельзя.
+      operationId: deleteSalesChannel
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      responses:
+        '204':
+          description: Канал удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Канал используется заказами
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: sid
+      description: Непрозрачная серверная сессия, срок действия 12 часов. Cookie HttpOnly и SameSite=Lax, Secure при HTTPS.
+  parameters:
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      description: Должен совпадать с настроенным origin API. Проверяется для всех изменяющих состояние запросов.
+      schema:
+        type: string
+        format: uri
+      example: https://app.example.test
+  schemas:
+    Id:
+      type: string
+      pattern: '^[1-9][0-9]{0,18}$'
+      description: Десятичная строка в пределах положительного bigint
+      example: '42'
+    Role:
+      type: string
+      enum: [analyst, admin]
+    User:
+      type: object
+      required: [id, email, role]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+    OrderStatus:
+      type: string
+      enum: [new, processing, completed, cancelled]
+      description: Статусы в интерфейсе переводятся на русский язык.
+    Order:
+      type: object
+      required: [id, number, createdAt, status, channelId, channelName, totalKopecks]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        number:
+          type: string
+          pattern: '^[A-Z0-9-]{1,32}$'
+          description: Номер после обрезки пробелов по краям и преобразования к верхнему регистру
+          example: ORDER-001
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        channelId:
+          $ref: '#/components/schemas/Id'
+        channelName:
+          type: string
+          minLength: 1
+          maxLength: 50
+        totalKopecks:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 999999999
+          description: Сумма заказа в копейках
+    CreateOrder:
+      type: object
+      additionalProperties: false
+      required: [number, channelId, totalKopecks]
+      properties:
+        number:
+          type: string
+          pattern: '^\s*[A-Za-z0-9-]{1,32}\s*$'
+          description: После обрезки краёв номер содержит от 1 до 32 латинских букв, цифр или дефисов. Сервер сохраняет верхний регистр.
+        channelId:
+          $ref: '#/components/schemas/Id'
+        totalKopecks:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 999999999
+    UpdateOrder:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        number:
+          type: string
+          pattern: '^\s*[A-Za-z0-9-]{1,32}\s*$'
+          description: После обрезки краёв номер содержит от 1 до 32 латинских букв, цифр или дефисов. Сервер сохраняет верхний регистр.
+        channelId:
+          $ref: '#/components/schemas/Id'
+        totalKopecks:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 999999999
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+    SalesChannel:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+    SalesChannelInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          pattern: '\S'
+          description: После обрезки краёв имя содержит от 1 до 50 символов. Уникальность проверяется без учёта регистра.
+    OrderPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          enum: [20]
+        total:
+          type: integer
+          minimum: 0
+    Statistics:
+      type: object
+      required: [period, totals, dailyOrders, weeklyRevenue, ordersByStatus]
+      properties:
+        period:
+          type: object
+          required: [from, to, timeZone]
+          properties:
+            from:
+              type: string
+              format: date
+            to:
+              type: string
+              format: date
+            timeZone:
+              type: string
+              enum: [Europe/Moscow]
+        totals:
+          type: object
+          required: [orders, completedOrders, revenueKopecks, averageCheckKopecks]
+          properties:
+            orders:
+              type: integer
+              minimum: 0
+              description: Все заказы за период независимо от статуса
+            completedOrders:
+              type: integer
+              minimum: 0
+            revenueKopecks:
+              type: integer
+              minimum: 0
+              description: Выручка по завершённым заказам, сгруппированным по дате создания
+            averageCheckKopecks:
+              type: integer
+              minimum: 0
+              nullable: true
+              description: Среднее по завершённым заказам, округлённое до копейки методом half-up
+        dailyOrders:
+          type: array
+          description: Счётчик заказов по каждому календарному дню периода, включая дни с нулём
+          items:
+            type: object
+            required: [date, count]
+            properties:
+              date:
+                type: string
+                format: date
+              count:
+                type: integer
+                minimum: 0
+        weeklyRevenue:
+          type: array
+          description: Недельные интервалы с понедельника по воскресенье, обрезанные границами периода; нулевые недели включены
+          items:
+            type: object
+            required: [from, to, revenueKopecks]
+            properties:
+              from:
+                type: string
+                format: date
+              to:
+                type: string
+                format: date
+              revenueKopecks:
+                type: integer
+                minimum: 0
+        ordersByStatus:
+          type: array
+          description: Содержит ровно по одной записи для каждого статуса, включая нулевые значения
+          minItems: 4
+          maxItems: 4
+          items:
+            type: object
+            required: [status, count]
+            properties:
+              status:
+                $ref: '#/components/schemas/OrderStatus'
+              count:
+                type: integer
+                minimum: 0
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Проверьте введённые данные.
+            fields:
+              type: object
+              additionalProperties:
+                type: string
+              description: Сообщения об ошибках по имени поля
+  responses:
+    BadRequest:
+      description: Некорректный запрос или данные не прошли проверку
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Требуется действующая сессия
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Недостаточная роль или Origin не совпадает с настроенным origin API
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Конфликт уникальности или бизнес-правил
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
