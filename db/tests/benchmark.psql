@@ -1,0 +1,12 @@
+\set ON_ERROR_STOP on
+BEGIN;
+INSERT INTO orders (number, sales_channel_id, status, total_kopecks, created_at)
+SELECT 'PERF-' || n, channel.id,
+    (ARRAY['new','processing','completed','cancelled'])[1 + n % 4],
+    10000 + n * 10,
+    TIMESTAMPTZ '2026-09-01 00:00:00+03' + (n % 30) * interval '1 day' + n * interval '1 second'
+FROM generate_series(1, 10000) AS series(n)
+CROSS JOIN (SELECT id FROM sales_channels WHERE name = U&'\0421\0430\0439\0442') AS channel
+ON CONFLICT (number) DO NOTHING;
+COMMIT;
+ANALYZE orders;
