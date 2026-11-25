@@ -125,3 +125,4 @@ Remove-Item Env:ORDERS_ADMIN_PASSWORD, Env:ORDERS_ANALYST_PASSWORD
 - `db/` — миграция, учебные данные, агрегирующий SQL, тесты БД.
 - [Архитектура приложения](docs/diagrams/architecture.svg) и [ER-диаграмма базы данных](docs/diagrams/er.svg).
 - [Описание API в OpenAPI](docs/openapi.yaml) и [прототип экранов](docs/Прототип%20экранов.html).
+- [Пояснительная записка](docs/Пояснительная%20записка.docx).
